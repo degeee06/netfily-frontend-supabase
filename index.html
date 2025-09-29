@@ -340,79 +340,69 @@
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
-<script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    <script type="module">
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-    const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
+        const supabase = createClient(KEY_SUPABASE_URL, KEY_SUPABASE_ANON);
 
-    // ✅ CORREÇÃO: URL correta da função
-    const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1";
+        let userToken = null;
+        let agendamentosCache = [];
+        let diaSelecionado = 1;
+        let telefoneMask = null;
 
-    let userToken = null;
-    let agendamentosCache = [];
-    let diaSelecionado = 1;
-    let telefoneMask = null;
+        const form = document.getElementById('agendamentoForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginSection = document.getElementById('loginSection');
+        const meusAgendamentos = document.getElementById('meusAgendamentos');
+        const searchInput = document.getElementById("searchInput");
+        const statusFilter = document.getElementById("statusFilter");
+        const exportCSVBtn = document.getElementById("exportCSVBtn");
+        const exportPDFBtn = document.getElementById("exportPDFBtn");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const loginText = document.getElementById("loginText");
+        const loginSpinner = document.getElementById("loginSpinner");
+        const agendarText = document.getElementById("agendarText");
+        const agendarSpinner = document.getElementById("agendarSpinner");
+        const telefoneInput = document.getElementById("Telefone");
+        const dataInput = document.getElementById("Data");
+        const horarioInput = document.getElementById("Horario");
 
-    const form = document.getElementById('agendamentoForm');
-    const loginBtn = document.getElementById('loginBtn');
-    const loginSection = document.getElementById('loginSection');
-    const meusAgendamentos = document.getElementById('meusAgendamentos');
-    const searchInput = document.getElementById("searchInput");
-    const statusFilter = document.getElementById("statusFilter");
-    const exportCSVBtn = document.getElementById("exportCSVBtn");
-    const exportPDFBtn = document.getElementById("exportPDFBtn");
-    const logoutBtn = document.getElementById("logoutBtn");
-    const loginText = document.getElementById("loginText");
-    const loginSpinner = document.getElementById("loginSpinner");
-    const agendarText = document.getElementById("agendarText");
-    const agendarSpinner = document.getElementById("agendarSpinner");
-    const telefoneInput = document.getElementById("Telefone");
-    const dataInput = document.getElementById("Data");
-    const horarioInput = document.getElementById("Horario");
+        const pathParts = window.location.pathname.split('/');
+        const cliente = pathParts[1] || '';
 
-   // PARA index.html NA RAIZ
-// CORREÇÃO: Pega cliente da URL corretamente
-const pathParts = window.location.pathname.split('/').filter(part => part && part !== 'index.html');
-console.log('🔍 PathParts debug:', pathParts);
-console.log('📍 URL completa:', window.location.href);
+        function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
 
-const cliente = pathParts[0] || 'cliente1'; // Pega primeiro elemento do array
-console.log('🎯 Cliente detectado:', cliente);
 
-    function formatData(data) { 
-        const [y,m,d] = data.split("-"); 
-        return `${d}/${m}/${y}`; 
+// ---------------- INICIALIZAÇÃO ----------------
+function init() {
+    // Configurar máscara de telefone
+    if (telefoneInput) {
+        telefoneMask = IMask(telefoneInput, {
+            mask: '(00) 00000-0000'
+        });
     }
-
-
-        // ---------------- INICIALIZAÇÃO ----------------
-        function init() {
-            // Configurar máscara de telefone
-            if (telefoneInput) {
-                telefoneMask = IMask(telefoneInput, {
-                    mask: '(00) 00000-0000'
-                });
-            }
-            
-            // Permitir selecionar a partir de hoje
-            const hoje = new Date();
-            if (dataInput) {
-                dataInput.min = hoje.toISOString().split('T')[0];
-            }
-            
-            // Verificar se já está logado
-            const token = localStorage.getItem('userToken');
-            if (token) {
-                userToken = token;
-                loginSection.style.display = 'none';
-                form.style.display = 'block';
-                logoutBtn.style.display = 'flex';
-                listarAgendamentos();
-            }
-        }
-
+    
+    // Permitir selecionar a partir de hoje (incluindo hoje)
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1); // Data de ontem
+    
+    if (dataInput) {
+        dataInput.min = ontem.toISOString().split('T')[0]; // Permite desde ontem
+    }
+    
+    // Verificar se já está logado
+    const token = localStorage.getItem('userToken');
+    if (token) {
+        userToken = token;
+        loginSection.style.display = 'none';
+        form.style.display = 'block';
+        logoutBtn.style.display = 'flex';
+        listarAgendamentos();
+    }
+}
         // ---------------- TOASTS ----------------
         let activeToasts = [];
         function showToast(message, type = "success") {
@@ -560,6 +550,7 @@ console.log('🎯 Cliente detectado:', cliente);
             });
 
             feather.replace();
+            checkFreeLimit();
         }
 
         // ---------------- MODAL REAGENDAR ----------------
@@ -606,9 +597,7 @@ console.log('🎯 Cliente detectado:', cliente);
             }
 
             // Preenche valores atuais e define data mínima como hoje
-            const hoje = new Date().toISOString().split('T')[0];
             modal.querySelector("#novaData").value = agendamento.data;
-            modal.querySelector("#novaData").min = hoje;
             modal.querySelector("#novoHorario").value = agendamento.horario;
 
             // Remove qualquer evento antigo para evitar duplicação
@@ -625,6 +614,7 @@ console.log('🎯 Cliente detectado:', cliente);
                     return;
                 }
 
+
                 reagendarAgendamento(agendamento.cliente, agendamento.id, novaData, novoHorario);
                 modal.classList.add("hidden");
             });
@@ -637,25 +627,19 @@ console.log('🎯 Cliente detectado:', cliente);
         async function listarAgendamentos(){
             if(!userToken) return;
             try{
-                // CORREÇÃO: URL correta para listar agendamentos
-                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}`, {
+                const res = await fetch(`/agendamentos/${cliente}`, {
                     headers: { "Authorization": `Bearer ${userToken}` }
                 });
-                
-                if (!res.ok) {
-                    throw new Error(`Erro ${res.status}: ${res.statusText}`);
-                }
-                
-                const data = await res.json();
-                agendamentosCache = data.agendamentos || [];
+                const { agendamentos } = await res.json();
+                agendamentosCache = agendamentos;
                 meusAgendamentos.style.display = 'block';
                 document.getElementById('filtersSection').style.display = 'block';
                 document.getElementById('diasTabs').style.display = 'flex';
                 initTabsDias();
                 renderAgendamentos(); 
-               
+                checkFreeLimit();
             } catch(e){
-                console.error("Erro ao listar agendamentos:", e);
+                console.error(e);
                 showToast("Erro ao listar agendamentos","error");
             }
         }
@@ -753,29 +737,27 @@ console.log('🎯 Cliente detectado:', cliente);
                 return;
             }
 
+   
+
             // Mostrar loading
             agendarText.classList.add('hidden');
             agendarSpinner.classList.remove('hidden');
             form.querySelector('button[type="submit"]').disabled = true;
      
             try{
-                // CORREÇÃO: URL correta para agendar
-                const response = await fetch(`${FUNCTION_BASE_URL}/agendar/${cliente}`, {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${userToken}`, 
-                        'Content-Type':'application/json' 
-                    },
-                    body: JSON.stringify(dataToSend)
+                const response=await fetch(`/agendar/${cliente}`,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
+                    body:JSON.stringify(dataToSend)
                 });
-
+                
                 if(response.ok){ 
                     showToast("Agendado com sucesso!","success"); 
                     form.reset(); 
                     listarAgendamentos(); 
                 } else {
                     const errorData = await response.json();
-                    showToast(errorData.msg || errorData.error || "Não foi possível agendar!", "error");
+                    showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
                 }
             } catch(err){ 
                 console.error(err); 
@@ -824,7 +806,7 @@ console.log('🎯 Cliente detectado:', cliente);
                     const semanas = parseInt(btn.dataset.semana);
                     const dataLimite = new Date();
                     dataLimite.setDate(dataLimite.getDate() + semanas * 7);
-                    diaSelecionado = semanas;
+                    diaSelecionado = semanas; // Usar o valor numérico diretamente para semanas
                     renderAgendamentos();
                 });
             });
@@ -892,7 +874,7 @@ console.log('🎯 Cliente detectado:', cliente);
             
             // Conteúdo da tabela
             filtrados.forEach(a => {
-                if(y > 270) {
+                if(y > 270) { // Nova página se necessário
                     doc.addPage();
                     y = 20;
                 }
@@ -919,7 +901,60 @@ console.log('🎯 Cliente detectado:', cliente);
             showToast("Exportado para PDF com sucesso", "success");
         });
 
-        // ---------------- CONFIRMAR AGENDAMENTO ----------------
+        const MAX_FREE = 3; // limite de agendamentos free
+
+        async function checkFreeLimit() {
+            const emailInput = document.getElementById('email');
+            const email = emailInput?.value?.trim();
+            let isVIP = false;
+
+            if (email) {
+                try {
+                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        isVIP = data.vip === true;
+                    }
+                } catch (e) {
+                    console.error("Erro ao verificar VIP:", e);
+                }
+            }
+
+            const agendamentoForm = document.getElementById('agendamentoForm');
+            const submitBtn = agendamentoForm.querySelector('button[type="submit"]');
+            const botoes = document.querySelectorAll(".agendamento-card button");
+
+            if (!isVIP && agendamentosCache.length >= MAX_FREE) {
+                // 🔒 bloqueia agendar
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                // 🔒 bloqueia confirmar/cancelar/reagendar
+                botoes.forEach(b => {
+                    b.disabled = true;
+                    b.classList.add('opacity-50', 'cursor-not-allowed');
+                });
+
+                criarBotaoVIP();
+            } else {
+                // 🔓 libera agendar
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                // 🔓 libera confirmar/cancelar/reagendar
+                botoes.forEach(b => {
+                    b.disabled = false;
+                    b.classList.remove('opacity-50', 'cursor-not-allowed');
+                });
+
+                // remove botão/qrCode se existir
+                const vipBtn = document.getElementById('upgradeVIP');
+                if (vipBtn) vipBtn.remove();
+                const pixDiv = document.getElementById('pixArea');
+                if (pixDiv) pixDiv.remove();
+            }
+        }
+
         async function confirmarAgendamento(cliente, id) {
             if (!userToken) {
                 showToast("Faça login para confirmar um agendamento.", "warning");
@@ -927,13 +962,13 @@ console.log('🎯 Cliente detectado:', cliente);
             }
 
             try {
-                // CORREÇÃO: URL correta para confirmar
-                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/confirmar/${id}`, {
+                const res = await fetch(`/agendamentos/${cliente}/confirmar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
                         "Content-Type": "application/json"
-                    }
+                    },
+                    body: JSON.stringify({ status: "confirmado", confirmado: true })
                 });
 
                 const data = await res.json();
@@ -942,7 +977,7 @@ console.log('🎯 Cliente detectado:', cliente);
                     showToast("Agendamento confirmado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    showToast("Erro ao confirmar: " + (data.msg || data.error), "error");
+                    showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
                 }
 
             } catch (e) {
@@ -959,8 +994,7 @@ console.log('🎯 Cliente detectado:', cliente);
             }
 
             try {
-                // CORREÇÃO: URL correta para cancelar
-                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/cancelar/${id}`, {
+                const res = await fetch(`/agendamentos/${cliente}/cancelar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -973,7 +1007,7 @@ console.log('🎯 Cliente detectado:', cliente);
                     showToast("Agendamento cancelado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    showToast("Erro ao cancelar: " + (data.msg || data.error), "error");
+                    showToast("Erro ao cancelar: " + (data.msg || data.message), "error");
                 }
             } catch (e) {
                 console.error(e);
@@ -981,7 +1015,6 @@ console.log('🎯 Cliente detectado:', cliente);
             }
         }
 
-        // ---------------- REAGENDAR AGENDAMENTO ----------------
         async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
             if (!userToken) {
                 showToast("Faça login para reagendar um agendamento.", "warning");
@@ -989,8 +1022,7 @@ console.log('🎯 Cliente detectado:', cliente);
             }
 
             try {
-                // CORREÇÃO: URL correta para reagendar
-                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/reagendar/${id}`, {
+                const res = await fetch(`/agendamentos/${cliente}/reagendar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -998,7 +1030,9 @@ console.log('🎯 Cliente detectado:', cliente);
                     },
                     body: JSON.stringify({ 
                         novaData, 
-                        novoHorario
+                        novoHorario, 
+                        status: "pendente",
+                        confirmado: false
                     })
                 });
 
@@ -1008,7 +1042,12 @@ console.log('🎯 Cliente detectado:', cliente);
                     showToast("Agendamento reagendado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    showToast("Erro ao reagendar: " + (data.msg || data.error), "error");
+                    // Detecta conflito de horário (erro do índice único)
+                    if (data.code === "23505") {
+                        showToast("Já existe um agendamento nesse horário para este cliente.", "error");
+                    } else {
+                        showToast("Erro ao reagendar: " + (data.msg || data.message), "error");
+                    }
                 }
 
             } catch (e) {
@@ -1017,6 +1056,112 @@ console.log('🎯 Cliente detectado:', cliente);
             }
         }
 
+        function criarBotaoVIP() {
+    const agendamentoForm = document.getElementById('agendamentoForm');
+
+    // Remove botão antigo, se existir
+    const antigoBtn = document.getElementById('upgradeVIP');
+    if (antigoBtn) antigoBtn.remove();
+
+    // Cria botão VIP
+    const vipBtn = document.createElement('button');
+    vipBtn.id = 'upgradeVIP';
+    vipBtn.type = 'button';
+    vipBtn.innerText = 'Upgrade VIP';
+    vipBtn.className = 'w-full mt-4 bg-yellow-500 text-white py-3 rounded-lg font-medium hover:opacity-90 transition-all';
+
+    vipBtn.addEventListener('click', async () => {
+        // ⚡ ALTERAÇÃO AQUI: Use o email do login em vez do campo do formulário
+        const emailLogin = document.getElementById('email').value; // Email do login
+        const emailForm = document.getElementById('Email')?.value; // Email do formulário (se existir)
+        
+        const email = emailForm || emailLogin; // Prefere o email do formulário, senão usa o do login
+        
+        if (!email) {
+            showToast("Informe seu email para ser VIP", "warning");
+            return;
+        }
+
+        const emailNormalizado = email.trim();
+
+        try {
+            const res = await fetch("/create-pix", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: 0.01, // valor do teste
+                    description: "Assinatura VIP",
+                    email: emailNormalizado
+                })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Erro desconhecido ao criar pagamento');
+            }
+
+            const data = await res.json();
+            if (!data.qr_code_base64) {
+                throw new Error('Não foi possível gerar o QR Code PIX');
+            }
+
+            // Exibe QR Code
+            let pixDiv = document.getElementById("pixArea");
+            if (!pixDiv) {
+                pixDiv = document.createElement("div");
+                pixDiv.id = "pixArea";
+                pixDiv.className = 'mt-4 p-4 bg-white/10 rounded-lg';
+                agendamentoForm.appendChild(pixDiv);
+            }
+
+            pixDiv.innerHTML = `
+                <h3 class="mb-2">Escaneie o QR Code para pagar:</h3>
+                <img src="data:image/png;base64,${data.qr_code_base64}" class="mx-auto mb-2 w-48 h-48"/>
+                <p class="text-sm mb-1"><strong>Código copia e cola:</strong></p>
+                <textarea readonly class="w-full p-2 bg-white/5 rounded text-sm" style="height:80px">${data.qr_code}</textarea>
+            `;
+
+            showToast("QR Code gerado! Pague para ativar seu VIP", "success");
+
+            // 🔄 Função de polling para checar VIP
+            async function checkVipStatus(email, pixDiv, tentativas = 0, maxTentativas = 20) {
+                try {
+                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    if (!res.ok) throw new Error("Erro ao checar VIP");
+
+                    const vipData = await res.json();
+                    if (vipData.vip) {
+                        showToast("Parabéns! Agora você é VIP 🎉", "success");
+                        pixDiv.remove();
+                        if (typeof listarAgendamentos === 'function') listarAgendamentos();
+                        if (typeof checkFreeLimit === 'function') checkFreeLimit();
+                        return;
+                    }
+
+                    if (tentativas < maxTentativas) {
+                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
+                    } else {
+                        showToast("Ainda não recebemos o pagamento, tente novamente mais tarde.", "warning");
+                    }
+                } catch (err) {
+                    console.error("Erro ao checar VIP:", err);
+                    if (tentativas < maxTentativas) {
+                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
+                    }
+                }
+            }
+
+            // Inicia a checagem de VIP
+            checkVipStatus(emailNormalizado, pixDiv);
+
+        } catch (err) {
+            console.error("Erro ao gerar Pix:", err);
+            showToast(`Erro ao gerar pagamento: ${err.message}`, "error");
+        }
+    });
+
+    agendamentoForm.appendChild(vipBtn);
+}
         // ---------------- INIT ----------------
         AOS.init({
             duration: 800,

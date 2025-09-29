@@ -373,14 +373,13 @@
     const horarioInput = document.getElementById("Horario");
 
    // PARA index.html NA RAIZ
+// CORREÇÃO: Pega cliente da URL corretamente
 const pathParts = window.location.pathname.split('/').filter(part => part && part !== 'index.html');
-console.log('🔍 PathParts:', pathParts);
+console.log('🔍 PathParts debug:', pathParts);
+console.log('📍 URL completa:', window.location.href);
 
-const cliente = pathParts[0] || 'default';
-console.log('🎯 Cliente:', cliente);
-    
-    console.log('Cliente detectado:', cliente);
-    console.log('Path parts:', pathParts);
+const cliente = pathParts[0] || 'cliente1'; // Pega primeiro elemento do array
+console.log('🎯 Cliente detectado:', cliente);
 
     function formatData(data) { 
         const [y,m,d] = data.split("-"); 

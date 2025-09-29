@@ -373,8 +373,8 @@
         const horarioInput = document.getElementById("Horario");
 
         // CORREÇÃO: Obter cliente da URL de forma mais robusta
-        const urlParams = new URLSearchParams(window.location.search);
-        let cliente = urlParams.get('cliente') || 'default';
+       const pathParts = window.location.pathname.split('/');
+        const cliente = pathParts[1] || '';
 
         function formatData(data) { 
             const [y,m,d] = data.split("-"); 

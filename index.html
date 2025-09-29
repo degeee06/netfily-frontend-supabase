@@ -340,46 +340,50 @@
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
-    <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+<script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // CORREÇÃO: URL correta da função
-        const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1";
+    // ✅ CORREÇÃO: URL correta da função
+    const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1";
 
-        let userToken = null;
-        let agendamentosCache = [];
-        let diaSelecionado = 1;
-        let telefoneMask = null;
+    let userToken = null;
+    let agendamentosCache = [];
+    let diaSelecionado = 1;
+    let telefoneMask = null;
 
-        const form = document.getElementById('agendamentoForm');
-        const loginBtn = document.getElementById('loginBtn');
-        const loginSection = document.getElementById('loginSection');
-        const meusAgendamentos = document.getElementById('meusAgendamentos');
-        const searchInput = document.getElementById("searchInput");
-        const statusFilter = document.getElementById("statusFilter");
-        const exportCSVBtn = document.getElementById("exportCSVBtn");
-        const exportPDFBtn = document.getElementById("exportPDFBtn");
-        const logoutBtn = document.getElementById("logoutBtn");
-        const loginText = document.getElementById("loginText");
-        const loginSpinner = document.getElementById("loginSpinner");
-        const agendarText = document.getElementById("agendarText");
-        const agendarSpinner = document.getElementById("agendarSpinner");
-        const telefoneInput = document.getElementById("Telefone");
-        const dataInput = document.getElementById("Data");
-        const horarioInput = document.getElementById("Horario");
+    const form = document.getElementById('agendamentoForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginSection = document.getElementById('loginSection');
+    const meusAgendamentos = document.getElementById('meusAgendamentos');
+    const searchInput = document.getElementById("searchInput");
+    const statusFilter = document.getElementById("statusFilter");
+    const exportCSVBtn = document.getElementById("exportCSVBtn");
+    const exportPDFBtn = document.getElementById("exportPDFBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const loginText = document.getElementById("loginText");
+    const loginSpinner = document.getElementById("loginSpinner");
+    const agendarText = document.getElementById("agendarText");
+    const agendarSpinner = document.getElementById("agendarSpinner");
+    const telefoneInput = document.getElementById("Telefone");
+    const dataInput = document.getElementById("Data");
+    const horarioInput = document.getElementById("Horario");
 
-        // CORREÇÃO: Obter cliente da URL de forma mais robusta
-       const pathParts = window.location.pathname.split('/');
-        const cliente = pathParts[1] || '';
+    // ✅ CORREÇÃO: VOLTA AO FORMATO ORIGINAL QUE FUNCIONAVA
+    const pathParts = window.location.pathname.split('/');
+    const cliente = pathParts[1] || 'default';
+    
+    console.log('Cliente detectado:', cliente);
+    console.log('Path parts:', pathParts);
 
-        function formatData(data) { 
-            const [y,m,d] = data.split("-"); 
-            return `${d}/${m}/${y}`; 
-        }
+    function formatData(data) { 
+        const [y,m,d] = data.split("-"); 
+        return `${d}/${m}/${y}`; 
+    }
+
 
         // ---------------- INICIALIZAÇÃO ----------------
         function init() {

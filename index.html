@@ -767,7 +767,7 @@ function init() {
             form.querySelector('button[type="submit"]').disabled = true;
      
             try{
-                const response=await fetch(`/agendar/${cliente}`,{
+                const response=await fetch(`${FUNCTION_BASE_URL}/agendar/${cliente}`,{
                     method:'POST',
                     headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
                     body:JSON.stringify(dataToSend)

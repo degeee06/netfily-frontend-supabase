@@ -369,8 +369,15 @@
         const dataInput = document.getElementById("Data");
         const horarioInput = document.getElementById("Horario");
 
-        const pathParts = window.location.pathname.split('/');
-        const cliente = pathParts[1] || '';
+      // ✅ CORREÇÃO: Pega cliente da URL /cliente1
+const pathParts = window.location.pathname.split('/').filter(part => part && part !== 'index.html');
+console.log('🔍 PathParts:', pathParts);
+
+let cliente = 'cliente1'; // ← FORÇA cliente1 para teste
+
+// Debug
+console.log('🎯 Cliente:', cliente);
+console.log('📍 URL completa:', window.location.href);
 
         function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
 

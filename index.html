@@ -627,25 +627,44 @@ function init() {
         }
 
         // ---------------- LISTAR AGENDAMENTOS ----------------
-        async function listarAgendamentos(){
-            if(!userToken) return;
-            try{
-                const res = await fetch(`/agendamentos/${cliente}`, {
-                    headers: { "Authorization": `Bearer ${userToken}` }
-                });
-                const { agendamentos } = await res.json();
-                agendamentosCache = agendamentos;
-                meusAgendamentos.style.display = 'block';
-                document.getElementById('filtersSection').style.display = 'block';
-                document.getElementById('diasTabs').style.display = 'flex';
-                initTabsDias();
-                renderAgendamentos(); 
-                checkFreeLimit();
-            } catch(e){
-                console.error(e);
-                showToast("Erro ao listar agendamentos","error");
+       async function listarAgendamentos(){
+    if(!userToken) return;
+    try{
+        const url = `${FUNCTION_BASE_URL}/agendamentos/${cliente}`;
+        console.log('🔗 Fazendo requisição para:', url);
+        console.log('🔑 Token:', userToken);
+
+        const res = await fetch(url, {
+            headers: { 
+                "Authorization": `Bearer ${userToken}`,
+                "Content-Type": "application/json"
             }
+        });
+        
+        console.log('📡 Status da resposta:', res.status);
+        console.log('📡 Tipo de conteúdo:', res.headers.get('content-type'));
+
+        // Se a resposta não for OK, lançar erro
+        if (!res.ok) {
+            throw new Error(`Erro HTTP: ${res.status}`);
         }
+
+        // Tenta converter para JSON
+        const data = await res.json();
+        console.log('✅ Dados recebidos:', data);
+
+        agendamentosCache = data.agendamentos || [];
+        meusAgendamentos.style.display = 'block';
+        document.getElementById('filtersSection').style.display = 'block';
+        document.getElementById('diasTabs').style.display = 'flex';
+        initTabsDias();
+        renderAgendamentos();
+       
+    } catch(e){
+        console.error("Erro ao listar agendamentos:", e);
+        showToast("Erro ao listar agendamentos","error");
+    }
+}
 
         // ---------------- LOGIN ----------------
         loginBtn.addEventListener('click', async () => {

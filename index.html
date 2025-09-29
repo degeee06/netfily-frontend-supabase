@@ -347,13 +347,13 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // ✅ URL CORRIGIDA - use o nome correto da sua função
     const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1/agendamentos";
     
     let userToken = null;
     let agendamentosCache = [];
     let diaSelecionado = 1;
     let telefoneMask = null;
+    let currentClienteId = '';
 
     const form = document.getElementById('agendamentoForm');
     const loginBtn = document.getElementById('loginBtn');
@@ -373,9 +373,24 @@
     const horarioInput = document.getElementById("Horario");
 
     const pathParts = window.location.pathname.split('/');
-    const cliente = pathParts[1] || '';
+    const clienteFromUrl = pathParts[1] || '';
 
     function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
+
+    // ---------------- VERIFICAR CLIENTE ----------------
+    async function verificarCliente(clienteId) {
+        try {
+            const response = await fetch(`${FUNCTION_BASE_URL}/clientes?id=${clienteId}`);
+            if (!response.ok) {
+                throw new Error('Cliente não encontrado');
+            }
+            const data = await response.json();
+            return data.cliente;
+        } catch (error) {
+            console.error('Erro ao verificar cliente:', error);
+            throw error;
+        }
+    }
 
     // ---------------- AUTENTICAÇÃO E API ----------------
     async function checkAuth() {
@@ -383,12 +398,21 @@
         if (session) {
             userToken = session.access_token;
             localStorage.setItem('userToken', userToken);
+            
+            // Obter cliente_id do metadata do usuário
+            const { data: { user } } = await supabase.auth.getUser();
+            currentClienteId = user?.user_metadata?.cliente_id || '';
+            
             loginSection.style.display = 'none';
             form.style.display = 'block';
             logoutBtn.style.display = 'flex';
-            await listarAgendamentos();
+            
+            if (currentClienteId) {
+                await listarAgendamentos();
+            }
         } else {
             userToken = null;
+            currentClienteId = '';
             localStorage.removeItem('userToken');
             loginSection.style.display = 'block';
             form.style.display = 'none';
@@ -411,15 +435,27 @@
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.msg || 'Erro na requisição');
+            const errorData = await response.json();
+            throw new Error(errorData.error || errorData.msg || 'Erro na requisição');
         }
 
         return await response.json();
     }
 
     // ---------------- INICIALIZAÇÃO ----------------
-    function init() {
+    async function init() {
+        // Verificar se cliente da URL existe
+        if (clienteFromUrl) {
+            try {
+                const cliente = await verificarCliente(clienteFromUrl);
+                console.log('Cliente encontrado:', cliente);
+            } catch (error) {
+                console.error('Cliente não encontrado:', error);
+                showToast("Cliente não encontrado", "error");
+                return;
+            }
+        }
+        
         // Configurar máscara de telefone
         if (telefoneInput && window.IMask) {
             telefoneMask = IMask(telefoneInput, {
@@ -436,7 +472,7 @@
             dataInput.min = ontem.toISOString().split('T')[0];
         }
         
-        checkAuth();
+        await checkAuth();
     }
 
     // ---------------- TOASTS ----------------
@@ -635,7 +671,7 @@
             });
         }
 
-        // Preenche valores atuais e define data mínima como hoje
+        // Preenche valores atuais
         modal.querySelector("#novaData").value = agendamento.data;
         modal.querySelector("#novoHorario").value = agendamento.horario;
 
@@ -663,9 +699,9 @@
 
     // ---------------- LISTAR AGENDAMENTOS ----------------
     async function listarAgendamentos(){
-        if(!userToken) return;
+        if(!userToken || !currentClienteId) return;
         try{
-            const data = await apiCall(`/agendamentos?cliente=${cliente}`);
+            const data = await apiCall(`/agendamentos?cliente=${currentClienteId}`);
             agendamentosCache = data.agendamentos || [];
             
             if (meusAgendamentos) meusAgendamentos.style.display = 'block';
@@ -679,7 +715,7 @@
            
         } catch(e){
             console.error("Erro ao listar agendamentos:", e);
-            showToast("Erro ao listar agendamentos","error");
+            showToast(e.message || "Erro ao listar agendamentos","error");
         }
     }
 
@@ -845,7 +881,7 @@
             const blob = new Blob([csv], { type: "text/csv" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `agendamentos_${cliente}.csv`;
+            link.download = `agendamentos_${currentClienteId}.csv`;
             link.click();
             showToast("Exportado para CSV com sucesso", "success");
         });
@@ -874,7 +910,7 @@
             
             doc.setFontSize(12);
             doc.setTextColor(100);
-            doc.text(`Cliente: ${cliente}`, 105, 30, null, null, "center");
+            doc.text(`Cliente: ${currentClienteId}`, 105, 30, null, null, "center");
             
             // Adiciona data
             const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
@@ -924,7 +960,7 @@
                 y += 10;
             });
             
-            doc.save(`agendamentos_${cliente}.pdf`);
+            doc.save(`agendamentos_${currentClienteId}.pdf`);
             showToast("Exportado para PDF com sucesso", "success");
         });
     }

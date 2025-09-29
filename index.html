@@ -372,9 +372,10 @@
         const dataInput = document.getElementById("Data");
         const horarioInput = document.getElementById("Horario");
 
-        // ✅ CORREÇÃO: Força cliente1
-    let cliente = 'cliente1';
-    console.log('🎯 Cliente:', cliente);
+       const pathParts = window.location.pathname.split('/');
+        const cliente = pathParts[1] || '';
+
+        function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
 
 
 // ---------------- INICIALIZAÇÃO ----------------

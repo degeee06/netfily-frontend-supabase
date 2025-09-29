@@ -997,22 +997,22 @@
         }
     }
 
-    // ---------------- REAGENDAR AGENDAMENTO ----------------
-    async function reagendarAgendamento(id, novaData, novoHorario) {
-        try {
-            const result = await apiCall(`/reagendar/${id}`, {
-                method: "POST",
-                body: JSON.stringify({ novaData, novoHorario })
-            });
-            
-            showToast("Agendamento reagendado com sucesso!", "success");
-            await listarAgendamentos();
-            
-        } catch (e) {
-            console.error(e);
-            showToast(e.message || "Erro ao reagendar agendamento", "error");
-        }
+   // ---------------- REAGENDAR AGENDAMENTO ----------------
+async function reagendarAgendamento(id, novaData, novoHorario) {
+    try {
+        const result = await apiCall(`/reagendar/${id}`, {  // ✅ Já está correto
+            method: "POST",
+            body: JSON.stringify({ novaData, novoHorario })
+        });
+        
+        showToast("Agendamento reagendado com sucesso!", "success");
+        await listarAgendamentos();
+        
+    } catch (e) {
+        console.error(e);
+        showToast(e.message || "Erro ao reagendar agendamento", "error");
     }
+}
 
     // ---------------- INIT ----------------
     if (window.AOS) {

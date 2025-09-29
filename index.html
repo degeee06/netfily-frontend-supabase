@@ -340,15 +340,15 @@
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
-      <script type="module">
+    <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
     const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // ✅ URL CORRETA da função
-    const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1/lead-server";
+    // ✅ URL CORRIGIDA - use o nome correto da sua função
+    const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1/agendamentos";
     
     let userToken = null;
     let agendamentosCache = [];
@@ -377,33 +377,66 @@
 
     function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
 
+    // ---------------- AUTENTICAÇÃO E API ----------------
+    async function checkAuth() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            userToken = session.access_token;
+            localStorage.setItem('userToken', userToken);
+            loginSection.style.display = 'none';
+            form.style.display = 'block';
+            logoutBtn.style.display = 'flex';
+            await listarAgendamentos();
+        } else {
+            userToken = null;
+            localStorage.removeItem('userToken');
+            loginSection.style.display = 'block';
+            form.style.display = 'none';
+            logoutBtn.style.display = 'none';
+        }
+    }
+
+    async function apiCall(endpoint, options = {}) {
+        if (!userToken) {
+            throw new Error('Usuário não autenticado');
+        }
+
+        const response = await fetch(`${FUNCTION_BASE_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`,
+                ...options.headers,
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.msg || 'Erro na requisição');
+        }
+
+        return await response.json();
+    }
+
     // ---------------- INICIALIZAÇÃO ----------------
     function init() {
         // Configurar máscara de telefone
-        if (telefoneInput) {
+        if (telefoneInput && window.IMask) {
             telefoneMask = IMask(telefoneInput, {
                 mask: '(00) 00000-0000'
             });
         }
         
-        // Permitir selecionar a partir de hoje (incluindo hoje)
+        // Permitir selecionar a partir de hoje
         const hoje = new Date();
         const ontem = new Date(hoje);
-        ontem.setDate(ontem.getDate() - 1); // Data de ontem
+        ontem.setDate(ontem.getDate() - 1);
         
         if (dataInput) {
-            dataInput.min = ontem.toISOString().split('T')[0]; // Permite desde ontem
+            dataInput.min = ontem.toISOString().split('T')[0];
         }
         
-        // Verificar se já está logado
-        const token = localStorage.getItem('userToken');
-        if (token) {
-            userToken = token;
-            loginSection.style.display = 'none';
-            form.style.display = 'block';
-            logoutBtn.style.display = 'flex';
-            listarAgendamentos();
-        }
+        checkAuth();
     }
 
     // ---------------- TOASTS ----------------
@@ -417,6 +450,8 @@
         };
         
         const container = document.getElementById("toast-container");
+        if (!container) return;
+        
         if (activeToasts.length >= 3) {
             const oldest = activeToasts.shift();
             oldest.remove();
@@ -445,8 +480,10 @@
 
     // ---------------- RENDER AGENDAMENTOS ----------------
     function renderAgendamentos() {
-        const filtroNome = searchInput.value.toLowerCase();
-        const filtroStatus = statusFilter.value;
+        if (!meusAgendamentos) return;
+        
+        const filtroNome = searchInput?.value.toLowerCase() || '';
+        const filtroStatus = statusFilter?.value || '';
 
         const filtrados = agendamentosCache
             .filter(a => ((a.nome + a.email).toLowerCase().includes(filtroNome)) &&
@@ -530,7 +567,7 @@
                 const btnConfirmar = document.createElement("button");
                 btnConfirmar.innerHTML = `<i data-feather="check" class="w-4 h-4"></i> Confirmar`;
                 btnConfirmar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
-                btnConfirmar.addEventListener("click", () => confirmarAgendamento(a.cliente, a.id));
+                btnConfirmar.addEventListener("click", () => confirmarAgendamento(a.id));
                 btnContainer.appendChild(btnConfirmar);
             }
 
@@ -538,7 +575,7 @@
             const btnCancelar = document.createElement("button");
             btnCancelar.innerHTML = `<i data-feather="x" class="w-4 h-4"></i> Cancelar`;
             btnCancelar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
-            btnCancelar.addEventListener("click", () => cancelarAgendamento(a.cliente, a.id));
+            btnCancelar.addEventListener("click", () => cancelarAgendamento(a.id));
             btnContainer.appendChild(btnCancelar);
 
             // Reagendar
@@ -616,7 +653,7 @@
                 return;
             }
 
-            reagendarAgendamento(agendamento.cliente, agendamento.id, novaData, novoHorario);
+            reagendarAgendamento(agendamento.id, novaData, novoHorario);
             modal.classList.add("hidden");
         });
 
@@ -628,35 +665,15 @@
     async function listarAgendamentos(){
         if(!userToken) return;
         try{
-            const url = `${FUNCTION_BASE_URL}/agendamentos/${cliente}`;
-            console.log('🔗 Fazendo requisição para:', url);
-            console.log('🔑 Token:', userToken);
-
-            const res = await fetch(url, {
-                headers: { 
-                    "Authorization": `Bearer ${userToken}`,
-                    "Content-Type": "application/json"
-                }
-            });
-            
-            console.log('📡 Status da resposta:', res.status);
-            console.log('📡 Tipo de conteúdo:', res.headers.get('content-type'));
-
-            // Se a resposta não for OK, lançar erro
-            if (!res.ok) {
-                const text = await res.text();
-                console.log('❌ Resposta de erro:', text);
-                throw new Error(`Erro HTTP: ${res.status} - ${text}`);
-            }
-
-            // Tenta converter para JSON
-            const data = await res.json();
-            console.log('✅ Dados recebidos:', data);
-
+            const data = await apiCall(`/agendamentos?cliente=${cliente}`);
             agendamentosCache = data.agendamentos || [];
-            meusAgendamentos.style.display = 'block';
-            document.getElementById('filtersSection').style.display = 'block';
-            document.getElementById('diasTabs').style.display = 'flex';
+            
+            if (meusAgendamentos) meusAgendamentos.style.display = 'block';
+            const filtersSection = document.getElementById('filtersSection');
+            const diasTabs = document.getElementById('diasTabs');
+            if (filtersSection) filtersSection.style.display = 'block';
+            if (diasTabs) diasTabs.style.display = 'flex';
+            
             initTabsDias();
             renderAgendamentos();
            
@@ -667,361 +684,309 @@
     }
 
     // ---------------- LOGIN ----------------
-    loginBtn.addEventListener('click', async () => {
-        const email = document.getElementById('email').value;
-        const senha = document.getElementById('senha').value;
-        if(!email || !senha) {
-            showToast("Preencha email e senha", "warning");
-            return;
-        }
-        
-        try {
-            // Mostrar loading
-            loginText.classList.add('hidden');
-            loginSpinner.classList.remove('hidden');
-            loginBtn.disabled = true;
+    if (loginBtn) {
+        loginBtn.addEventListener('click', async () => {
+            const email = document.getElementById('email')?.value;
+            const senha = document.getElementById('senha')?.value;
             
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
-            if(error){ 
-                showToast(error.message,"error"); 
-                // Esconder loading
-                loginText.classList.remove('hidden');
-                loginSpinner.classList.add('hidden');
-                loginBtn.disabled = false;
-                return; 
+            if(!email || !senha) {
+                showToast("Preencha email e senha", "warning");
+                return;
             }
-
-            userToken = data.session.access_token;
-            // Salvar token no localStorage
-            localStorage.setItem('userToken', userToken);
             
-            loginSection.style.display = 'none';
-            form.style.display = 'block';
-            logoutBtn.style.display = 'flex';
-
-            listarAgendamentos().then(() => {
-                // Seleciona o dia atual
-                let hoje = new Date().getDay();
-                if (hoje === 0) {
-                    hoje = 1;
+            try {
+                // Mostrar loading
+                if (loginText) loginText.classList.add('hidden');
+                if (loginSpinner) loginSpinner.classList.remove('hidden');
+                loginBtn.disabled = true;
+                
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+                if(error){ 
+                    showToast(error.message,"error"); 
+                    if (loginText) loginText.classList.remove('hidden');
+                    if (loginSpinner) loginSpinner.classList.add('hidden');
+                    loginBtn.disabled = false;
+                    return; 
                 }
 
-                const btnHoje = document.querySelector(`.tab-dia[data-dia="${hoje}"]`);
-                if (btnHoje) {
-                    btnHoje.click();
-                } else {
-                    document.querySelector(`.tab-dia[data-dia="1"]`)?.click();
-                }
-            });
+                userToken = data.session.access_token;
+                localStorage.setItem('userToken', userToken);
+                
+                await checkAuth();
+                showToast("Login realizado com sucesso!", "success");
 
-            showToast("Login realizado com sucesso!", "success");
-
-            // Esconder loading
-            loginText.classList.remove('hidden');
-            loginSpinner.classList.add('hidden');
-            loginBtn.disabled = false;
-
-        } catch(e) {
-            console.error(e);
-            showToast("Erro ao fazer login", "error");
-            // Esconder loading
-            loginText.classList.remove('hidden');
-            loginSpinner.classList.add('hidden');
-            loginBtn.disabled = false;
-        }
-    });
+            } catch(e) {
+                console.error(e);
+                showToast("Erro ao fazer login", "error");
+            } finally {
+                if (loginText) loginText.classList.remove('hidden');
+                if (loginSpinner) loginSpinner.classList.add('hidden');
+                loginBtn.disabled = false;
+            }
+        });
+    }
 
     // ---------------- LOGOUT ----------------
-    logoutBtn.addEventListener('click', () => {
-        userToken = null;
-        localStorage.removeItem('userToken');
-        loginSection.style.display = 'block';
-        form.style.display = 'none';
-        meusAgendamentos.style.display = 'none';
-        document.getElementById('filtersSection').style.display = 'none';
-        document.getElementById('diasTabs').style.display = 'none';
-        logoutBtn.style.display = 'none';
-        agendamentosCache = [];
-        
-        showToast("Logout realizado com sucesso", "info");
-    });
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            await checkAuth();
+            showToast("Logout realizado com sucesso", "info");
+        });
+    }
 
     // ---------------- AGENDAR ----------------
-    form.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        const formData=new FormData(form);
-        const dataToSend={};
-        formData.forEach((v,k)=>dataToSend[k]=v);
+    if (form) {
+        form.addEventListener('submit', async (e)=>{
+            e.preventDefault();
+            const formData = new FormData(form);
+            const dataToSend = {
+                Nome: formData.get('Nome'),
+                Email: formData.get('Email'),
+                Telefone: formData.get('Telefone'),
+                Data: formData.get('Data'),
+                Horario: formData.get('Horario')
+            };
 
-        // Verifica campos obrigatórios
-        if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
-            showToast("Preencha todos os campos", "warning");
-            return;
-        }
+            // Verifica campos obrigatórios
+            if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
+                showToast("Preencha todos os campos", "warning");
+                return;
+            }
 
-        // Mostrar loading
-        agendarText.classList.add('hidden');
-        agendarSpinner.classList.remove('hidden');
-        form.querySelector('button[type="submit"]').disabled = true;
- 
-        try{
-            const response=await fetch(`${FUNCTION_BASE_URL}/agendar/${cliente}`,{
-                method:'POST',
-                headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
-                body:JSON.stringify(dataToSend)
-            });
-            
-            if(response.ok){ 
+            // Mostrar loading
+            if (agendarText) agendarText.classList.add('hidden');
+            if (agendarSpinner) agendarSpinner.classList.remove('hidden');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try{
+                const result = await apiCall('/agendar', {
+                    method: 'POST',
+                    body: JSON.stringify(dataToSend)
+                });
+                
                 showToast("Agendado com sucesso!","success"); 
                 form.reset(); 
-                listarAgendamentos(); 
-            } else {
-                const errorData = await response.json();
-                showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
+                await listarAgendamentos();
+                
+            } catch(err){ 
+                console.error(err); 
+                showToast(err.message || "Erro ao enviar agendamento","error"); 
+            } finally {
+                // Esconder loading
+                if (agendarText) agendarText.classList.remove('hidden');
+                if (agendarSpinner) agendarSpinner.classList.add('hidden');
+                if (submitBtn) submitBtn.disabled = false;
             }
-        } catch(err){ 
-            console.error(err); 
-            showToast("Erro ao enviar agendamento","error"); 
-        } finally {
-            // Esconder loading
-            agendarText.classList.remove('hidden');
-            agendarSpinner.classList.add('hidden');
-            form.querySelector('button[type="submit"]').disabled = false;
-        }
-    });
+        });
+    }
 
     // ---------------- FILTROS ----------------
-    searchInput.addEventListener("input", renderAgendamentos);
-    statusFilter.addEventListener("change", renderAgendamentos);
+    if (searchInput) searchInput.addEventListener("input", renderAgendamentos);
+    if (statusFilter) statusFilter.addEventListener("change", renderAgendamentos);
 
     // ---------------- TABS ----------------
     function initTabsDias(){
-        const tabsDia=document.querySelectorAll(".tab-dia");
-        const tabsSemana=document.querySelectorAll(".tab-semana");
+        const tabsDia = document.querySelectorAll(".tab-dia");
+        const tabsSemana = document.querySelectorAll(".tab-semana");
         
         tabsDia.forEach(btn=>{
             btn.addEventListener("click",()=>{
-                tabsDia.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
-                tabsDia.forEach(b=>b.classList.add("bg-white/10", "hover:bg-white/20"));
-                tabsSemana.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
-                tabsSemana.forEach(b=>b.classList.add("bg-white/5", "hover:bg-white/10"));
+                tabsDia.forEach(b=>{
+                    b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
+                    b.classList.add("bg-white/10", "hover:bg-white/20");
+                });
+                tabsSemana.forEach(b=>{
+                    b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
+                    b.classList.add("bg-white/5", "hover:bg-white/10");
+                });
                 
                 btn.classList.remove("bg-white/10", "hover:bg-white/20");
                 btn.classList.add("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
-                diaSelecionado=parseInt(btn.dataset.dia);
+                diaSelecionado = parseInt(btn.dataset.dia);
                 renderAgendamentos();
             });
         });
 
         tabsSemana.forEach(btn=>{
             btn.addEventListener("click",()=>{
-                tabsDia.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
-                tabsDia.forEach(b=>b.classList.add("bg-white/10", "hover:bg-white/20"));
-                tabsSemana.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
-                tabsSemana.forEach(b=>b.classList.add("bg-white/5", "hover:bg-white/10"));
+                tabsDia.forEach(b=>{
+                    b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
+                    b.classList.add("bg-white/10", "hover:bg-white/20");
+                });
+                tabsSemana.forEach(b=>{
+                    b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
+                    b.classList.add("bg-white/5", "hover:bg-white/10");
+                });
                 
                 btn.classList.remove("bg-white/5", "hover:bg-white/10");
                 btn.classList.add("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
                 
-                const semanas = parseInt(btn.dataset.semana);
-                const dataLimite = new Date();
-                dataLimite.setDate(dataLimite.getDate() + semanas * 7);
-                diaSelecionado = semanas; // Usar o valor numérico diretamente para semanas
+                diaSelecionado = -parseInt(btn.dataset.semana);
                 renderAgendamentos();
             });
         });
     }
 
     // ---------------- EXPORT ----------------
-    exportCSVBtn.addEventListener("click", ()=>{
-        const filtrados = agendamentosCache.filter(a=>statusFilter.value?a.status===statusFilter.value:true);
-        if(filtrados.length === 0) {
-            showToast("Nenhum agendamento para exportar", "warning");
-            return;
-        }
-        
-        let csv="Nome,Email,Telefone,Data,Horario,Status\n";
-        filtrados.forEach(a=>{csv+=`${a.nome},${a.email},${a.telefone},${a.data},${a.horario},${a.status}\n`;});
-        const blob=new Blob([csv],{type:"text/csv"});
-        const link=document.createElement("a");
-        link.href=URL.createObjectURL(blob);
-        link.download=`agendamentos_${cliente}.csv`;
-        link.click();
-        showToast("Exportado para CSV com sucesso", "success");
-    });
-
-    exportPDFBtn.addEventListener("click", ()=>{
-        const { jsPDF }=window.jspdf;
-        const doc=new jsPDF();
-        
-        const filtrados = agendamentosCache.filter(a=>statusFilter.value?a.status===statusFilter.value:true);
-        if(filtrados.length === 0) {
-            showToast("Nenhum agendamento para exportar", "warning");
-            return;
-        }
-        
-        // Adiciona cabeçalho
-        doc.setFontSize(18);
-        doc.setTextColor(40);
-        doc.text("Agendamentos", 105, 20, null, null, "center");
-        
-        doc.setFontSize(12);
-        doc.setTextColor(100);
-        doc.text(`Cliente: ${cliente}`, 105, 30, null, null, "center");
-        
-        // Adiciona data
-        const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
-        const today = new Date().toLocaleDateString('pt-BR', options);
-        doc.text(`Gerado em: ${today}`, 105, 35, null, null, "center");
-        
-        // Adiciona linha
-        doc.setDrawColor(200);
-        doc.line(20, 40, 190, 40);
-        
-        // Configurações da tabela
-        doc.setFontSize(10);
-        doc.setTextColor(40);
-        let y = 50;
-        
-        // Cabeçalho da tabela
-        doc.setFillColor(230);
-        doc.rect(20, y, 170, 10, 'F');
-        doc.text("Data", 25, y + 7);
-        doc.text("Horário", 50, y + 7);
-        doc.text("Nome", 80, y + 7);
-        doc.text("Status", 160, y + 7);
-        y += 10;
-        
-        // Conteúdo da tabela
-        filtrados.forEach(a => {
-            if(y > 270) { // Nova página se necessário
-                doc.addPage();
-                y = 20;
+    if (exportCSVBtn) {
+        exportCSVBtn.addEventListener("click", ()=>{
+            const filtrados = agendamentosCache.filter(a => !statusFilter.value || a.status === statusFilter.value);
+            if(filtrados.length === 0) {
+                showToast("Nenhum agendamento para exportar", "warning");
+                return;
             }
             
-            doc.text(formatData(a.data), 25, y + 7);
-            doc.text(a.horario, 50, y + 7);
-            doc.text(a.nome, 80, y + 7);
-            
-            // Status com cor
-            if(a.status === 'confirmado') {
-                doc.setTextColor(0, 150, 0);
-            } else if(a.status === 'pendente') {
-                doc.setTextColor(200, 150, 0);
-            } else {
-                doc.setTextColor(40);
-            }
-            doc.text(a.status, 160, y + 7);
-            doc.setTextColor(40);
-            
-            y += 10;
+            let csv = "Nome,Email,Telefone,Data,Horario,Status\n";
+            filtrados.forEach(a => {
+                csv += `${a.nome},${a.email},${a.telefone},${a.data},${a.horario},${a.status}\n`;
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `agendamentos_${cliente}.csv`;
+            link.click();
+            showToast("Exportado para CSV com sucesso", "success");
         });
-        
-        doc.save(`agendamentos_${cliente}.pdf`);
-        showToast("Exportado para PDF com sucesso", "success");
-    });
+    }
+
+    if (exportPDFBtn) {
+        exportPDFBtn.addEventListener("click", ()=>{
+            if (!window.jspdf) {
+                showToast("Biblioteca PDF não carregada", "error");
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const filtrados = agendamentosCache.filter(a => !statusFilter.value || a.status === statusFilter.value);
+            if(filtrados.length === 0) {
+                showToast("Nenhum agendamento para exportar", "warning");
+                return;
+            }
+            
+            // Adiciona cabeçalho
+            doc.setFontSize(18);
+            doc.setTextColor(40);
+            doc.text("Agendamentos", 105, 20, null, null, "center");
+            
+            doc.setFontSize(12);
+            doc.setTextColor(100);
+            doc.text(`Cliente: ${cliente}`, 105, 30, null, null, "center");
+            
+            // Adiciona data
+            const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
+            const today = new Date().toLocaleDateString('pt-BR', options);
+            doc.text(`Gerado em: ${today}`, 105, 35, null, null, "center");
+            
+            // Adiciona linha
+            doc.setDrawColor(200);
+            doc.line(20, 40, 190, 40);
+            
+            // Configurações da tabela
+            doc.setFontSize(10);
+            doc.setTextColor(40);
+            let y = 50;
+            
+            // Cabeçalho da tabela
+            doc.setFillColor(230);
+            doc.rect(20, y, 170, 10, 'F');
+            doc.text("Data", 25, y + 7);
+            doc.text("Horário", 50, y + 7);
+            doc.text("Nome", 80, y + 7);
+            doc.text("Status", 160, y + 7);
+            y += 10;
+            
+            // Conteúdo da tabela
+            filtrados.forEach(a => {
+                if(y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                
+                doc.text(formatData(a.data), 25, y + 7);
+                doc.text(a.horario, 50, y + 7);
+                doc.text(a.nome, 80, y + 7);
+                
+                // Status com cor
+                if(a.status === 'confirmado') {
+                    doc.setTextColor(0, 150, 0);
+                } else if(a.status === 'pendente') {
+                    doc.setTextColor(200, 150, 0);
+                } else {
+                    doc.setTextColor(40);
+                }
+                doc.text(a.status, 160, y + 7);
+                doc.setTextColor(40);
+                
+                y += 10;
+            });
+            
+            doc.save(`agendamentos_${cliente}.pdf`);
+            showToast("Exportado para PDF com sucesso", "success");
+        });
+    }
 
     // ---------------- CONFIRMAR AGENDAMENTO ----------------
-    async function confirmarAgendamento(cliente, id) {
-        if (!userToken) {
-            showToast("Faça login para confirmar um agendamento.", "warning");
-            return;
-        }
-
+    async function confirmarAgendamento(id) {
         try {
-            const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/confirmar/${id}`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${userToken}`,
-                    "Content-Type": "application/json"
-                }
+            const result = await apiCall(`/confirmar/${id}`, {
+                method: "POST"
             });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                showToast("Agendamento confirmado com sucesso!", "success");
-                listarAgendamentos();
-            } else {
-                showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
-            }
-
+            
+            showToast("Agendamento confirmado com sucesso!", "success");
+            await listarAgendamentos();
+            
         } catch (e) {
             console.error(e);
-            showToast("Erro de conexão ao confirmar.", "error");
+            showToast(e.message || "Erro ao confirmar agendamento", "error");
         }
     }
 
     // ---------------- CANCELAR AGENDAMENTO ----------------
-    async function cancelarAgendamento(cliente, id) {
-        if (!userToken) {
-            showToast("Faça login para cancelar um agendamento.", "warning");
-            return;
-        }
-
+    async function cancelarAgendamento(id) {
         try {
-            const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/cancelar/${id}`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${userToken}`,
-                    "Content-Type": "application/json"
-                }
+            const result = await apiCall(`/cancelar/${id}`, {
+                method: "POST"
             });
-
-            const data = await res.json();
-            if (res.ok) {
-                showToast("Agendamento cancelado com sucesso!", "success");
-                listarAgendamentos();
-            } else {
-                showToast("Erro ao cancelar: " + (data.msg || data.message), "error");
-            }
+            
+            showToast("Agendamento cancelado com sucesso!", "success");
+            await listarAgendamentos();
+            
         } catch (e) {
             console.error(e);
-            showToast("Erro de conexão ao cancelar.", "error");
+            showToast(e.message || "Erro ao cancelar agendamento", "error");
         }
     }
 
     // ---------------- REAGENDAR AGENDAMENTO ----------------
-    async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
-        if (!userToken) {
-            showToast("Faça login para reagendar um agendamento.", "warning");
-            return;
-        }
-
+    async function reagendarAgendamento(id, novaData, novoHorario) {
         try {
-            const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/reagendar/${id}`, {
+            const result = await apiCall(`/reagendar/${id}`, {
                 method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${userToken}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ 
-                    novaData, 
-                    novoHorario
-                })
+                body: JSON.stringify({ novaData, novoHorario })
             });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                showToast("Agendamento reagendado com sucesso!", "success");
-                listarAgendamentos();
-            } else {
-                showToast("Erro ao reagendar: " + (data.msg || data.message), "error");
-            }
-
+            
+            showToast("Agendamento reagendado com sucesso!", "success");
+            await listarAgendamentos();
+            
         } catch (e) {
             console.error(e);
-            showToast("Erro de conexão ao reagendar.", "error");
+            showToast(e.message || "Erro ao reagendar agendamento", "error");
         }
     }
 
     // ---------------- INIT ----------------
-    AOS.init({
-        duration: 800,
-        easing: 'ease-out-quart',
-        once: true
-    });
+    if (window.AOS) {
+        AOS.init({
+            duration: 800,
+            easing: 'ease-out-quart',
+            once: true
+        });
+    }
+    
     feather.replace();
     init();
 </script>
